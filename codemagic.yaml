@@ -56,8 +56,6 @@ workflows:
           test -d ios/App/App.xcodeproj
           test -f ios/App/App/Info.plist
 
-          find ios/App -maxdepth 3 -type f | sort
-
       - name: App-Icon einsetzen
         script: |
           set -euo pipefail
@@ -83,7 +81,7 @@ workflows:
       - name: Signierung einrichten
         script: |
           set -euo pipefail
-          xcode-project use-profiles
+          xcode-project use-profiles             --project "$CM_BUILD_DIR/$XCODE_PROJECT"
 
       - name: Buildnummer setzen
         script: |
@@ -94,10 +92,34 @@ workflows:
       - name: IPA für TestFlight bauen
         script: |
           set -euo pipefail
+          cd "$CM_BUILD_DIR"
+
           xcode-project build-ipa             --project "$CM_BUILD_DIR/$XCODE_PROJECT"             --scheme "$XCODE_SCHEME"
 
+      - name: IPA prüfen
+        script: |
+          set -euo pipefail
+
+          echo "Gefundene IPA-Dateien:"
+          find "$CM_BUILD_DIR" -type f -name "*.ipa" -print
+
+          IPA_PATH=$(find "$CM_BUILD_DIR" -type f -name "*.ipa" | head -n 1)
+
+          if [ -z "$IPA_PATH" ]; then
+            echo "FEHLER: Es wurde keine IPA-Datei erzeugt."
+            exit 1
+          fi
+
+          mkdir -p "$CM_BUILD_DIR/build/ios/ipa"
+
+          if [ "$IPA_PATH" != "$CM_BUILD_DIR/build/ios/ipa/RevierAI.ipa" ]; then
+            cp "$IPA_PATH" "$CM_BUILD_DIR/build/ios/ipa/RevierAI.ipa"
+          fi
+
+          ls -lh "$CM_BUILD_DIR/build/ios/ipa"
+
     artifacts:
-      - ios/App/build/ios/ipa/*.ipa
+      - build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
       - "$HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM"
 
