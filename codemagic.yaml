@@ -25,10 +25,33 @@ workflows:
 
       - name: iOS-Projekt erzeugen und synchronisieren
         script: |
-          if [ ! -d "ios" ]; then
-            npx cap add ios
-          fi
+          set -euxo pipefail
+
+          echo "Node:"
+          node --version
+
+          echo "NPM:"
+          npm --version
+
+          echo "Capacitor:"
+          npx cap --version
+
+          echo "Projektdateien:"
+          ls -la
+          ls -la www
+
+          test -f package.json
+          test -f capacitor.config.ts
+          test -d www
+          test -f www/index.html
+
+          rm -rf ios
+
+          npx cap add ios
           npx cap sync ios
+
+          echo "Erzeugtes iOS-Projekt:"
+          ls -la ios/App
 
       - name: App-Icon einsetzen
         script: |
@@ -103,10 +126,33 @@ workflows:
 
       - name: iOS-Projekt erzeugen und synchronisieren
         script: |
-          if [ ! -d "ios" ]; then
-            npx cap add ios
-          fi
+          set -euxo pipefail
+
+          echo "Node:"
+          node --version
+
+          echo "NPM:"
+          npm --version
+
+          echo "Capacitor:"
+          npx cap --version
+
+          echo "Projektdateien:"
+          ls -la
+          ls -la www
+
+          test -f package.json
+          test -f capacitor.config.ts
+          test -d www
+          test -f www/index.html
+
+          rm -rf ios
+
+          npx cap add ios
           npx cap sync ios
+
+          echo "Erzeugtes iOS-Projekt:"
+          ls -la ios/App
 
       - name: App-Icon einsetzen
         script: |
