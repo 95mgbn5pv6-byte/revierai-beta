@@ -13,7 +13,7 @@ workflows:
         distribution_type: app_store
         bundle_identifier: at.revierai.app
       vars:
-        XCODE_WORKSPACE: "ios/App/App.xcworkspace"
+        XCODE_WORKSPACE: "ios/App/App.xcodeproj"
         XCODE_SCHEME: "App"
     cache:
       cache_paths:
@@ -175,12 +175,13 @@ workflows:
           cd ios/App
           agvtool new-version -all "$BUILD_NUMBER"
 
-      - name: IPA bauen
-        script: |
-          cd ios/App
-          xcode-project build-ipa \
-            --workspace "$XCODE_WORKSPACE" \
-            --scheme "$XCODE_SCHEME"
+    - name: IPA bauen
+  script: |
+    cd ios/App
+
+    xcode-project build-ipa \
+      --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+      --scheme "$XCODE_SCHEME"
 
     artifacts:
       - ios/App/build/ios/ipa/*.ipa
