@@ -5,87 +5,69 @@ workflows:
     max_build_duration: 60
     integrations:
       app_store_connect: revierai-apple
-    environment:
-      node: 22
-      xcode: 26.4
-      cocoapods: default
-      ios_signing:
-        distribution_type: app_store
-        bundle_identifier: at.revierai.app
-      vars:
-        XCODE_WORKSPACE: "ios/App/App.xcodeproj"
-        XCODE_SCHEME: "App"
-    cache:
-      cache_paths:
-        - $HOME/.npm
-        - $HOME/Library/Caches/CocoaPods
-    scripts:
-      - name: Node-Abhängigkeiten installieren
-        script: npm install
 
-      - name: iOS-Projekt erzeugen und synchronisieren
-        script: |
-          set -euxo pipefail
+environment:
+  node: 22
+  xcode: 26.4
+  ios_signing:
+    distribution_type: app_store
+    bundle_identifier: at.revierai.app
+  vars:
+    XCODE_PROJECT: "ios/App/App.xcodeproj"
+    XCODE_SCHEME: "App"
 
-          echo "Node:"
-          node --version
+scripts:
+  - name: Node-Abhängigkeiten installieren
+    script: npm install
 
-          echo "NPM:"
-          npm --version
+  - name: iOS-Projekt erzeugen und synchronisieren
+    script: |
+      set -euxo pipefail
 
-          echo "Capacitor:"
-          npx cap --version
+      rm -rf ios
 
-          echo "Projektdateien:"
-          ls -la
-          ls -la www
+      npx cap add ios --packagemanager SPM
+      npx cap sync ios
 
-          test -f package.json
-          test -f capacitor.config.ts
-          test -d www
-          test -f www/index.html
+      echo "Erzeugte Projektdateien:"
+      find ios -maxdepth 3 -type f | sort
 
-          rm -rf ios
+  - name: App-Icon einsetzen
+    script: |
+      chmod +x scripts/install-ios-icon.sh
+      scripts/install-ios-icon.sh
 
-          npx cap add ios
-          npx cap sync ios
+  - name: iPhone-Berechtigungen eintragen
+    script: |
+      PLIST="$CM_BUILD_DIR/ios/App/App/Info.plist"
 
-          echo "Erzeugtes iOS-Projekt:"
-          ls -la ios/App
+      /usr/libexec/PlistBuddy \
+        -c "Add :NSCameraUsageDescription string RevierAI benötigt die Kamera zum Erfassen von Wildbeobachtungen und Trophäen." \
+        "$PLIST" 2>/dev/null || true
 
-      - name: App-Icon einsetzen
-        script: |
-          chmod +x scripts/install-ios-icon.sh
-          scripts/install-ios-icon.sh
+      /usr/libexec/PlistBuddy \
+        -c "Add :NSPhotoLibraryUsageDescription string RevierAI benötigt Zugriff auf ausgewählte Wild- und Wildkamerafotos." \
+        "$PLIST" 2>/dev/null || true
 
-      - name: iPhone-Berechtigungen eintragen
-        script: |
-          PLIST="$CM_BUILD_DIR/ios/App/App/Info.plist"
-          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string RevierAI benötigt die Kamera zum Erfassen von Wildbeobachtungen und Trophäen." "$PLIST" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string RevierAI benötigt Zugriff auf ausgewählte Wild- und Wildkamerafotos." "$PLIST" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string RevierAI darf von dir erstellte Bilder in der Fotomediathek speichern." "$PLIST" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string RevierAI verwendet deinen Standort nur zum Speichern von Beobachtungs- und Revierpunkten." "$PLIST" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string RevierAI benötigt das Mikrofon nur für freiwillige Spracheingaben." "$PLIST" 2>/dev/null || true
+      /usr/libexec/PlistBuddy \
+        -c "Add :NSLocationWhenInUseUsageDescription string RevierAI verwendet deinen Standort zum Speichern von Beobachtungs- und Revierpunkten." \
+        "$PLIST" 2>/dev/null || true
 
-      
+  - name: Signierung einrichten
+    script: xcode-project use-profiles
 
-      - name: Signierung für internes TestFlight einrichten
-        script: |
-          xcode-project use-profiles \
-            --custom-export-options='{"testFlightInternalTestingOnly": true}'
+  - name: Buildnummer setzen
+    script: |
+      cd ios/App
+      agvtool new-version -all "$BUILD_NUMBER"
 
-      - name: Buildnummer setzen
-        script: |
-          cd ios/App
-          agvtool new-version -all "$BUILD_NUMBER"
+  - name: IPA bauen
+    script: |
+      cd ios/App
 
-      - name: IPA bauen
-        script: |
-          cd ios/App
-          xcode-project build-ipa \
-            --workspace "$XCODE_WORKSPACE" \
-            --scheme "$XCODE_SCHEME"
-
+      xcode-project build-ipa \
+        --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+        --scheme "$XCODE_SCHEME"
     artifacts:
       - ios/App/build/ios/ipa/*.ipa
       - /tmp/xcodebuild_logs/*.log
