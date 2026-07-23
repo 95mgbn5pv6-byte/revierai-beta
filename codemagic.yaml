@@ -99,7 +99,7 @@ workflows:
         - $HOME/Library/Caches/CocoaPods
     scripts:
       - name: Node-Abhängigkeiten installieren
-        script: npm ci
+        script: npm install
 
       - name: iOS-Projekt erzeugen und synchronisieren
         script: |
