@@ -67,10 +67,7 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string RevierAI verwendet deinen Standort nur zum Speichern von Beobachtungs- und Revierpunkten." "$PLIST" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string RevierAI benötigt das Mikrofon nur für freiwillige Spracheingaben." "$PLIST" 2>/dev/null || true
 
-      - name: CocoaPods installieren
-        script: |
-          cd ios/App
-          pod install
+      
 
       - name: Signierung für internes TestFlight einrichten
         script: |
@@ -168,10 +165,7 @@ workflows:
           /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string RevierAI verwendet deinen Standort nur zum Speichern von Beobachtungs- und Revierpunkten." "$PLIST" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string RevierAI benötigt das Mikrofon nur für freiwillige Spracheingaben." "$PLIST" 2>/dev/null || true
 
-      - name: CocoaPods installieren
-        script: |
-          cd ios/App
-          pod install
+   
 
       - name: Signierung einrichten
         script: xcode-project use-profiles
