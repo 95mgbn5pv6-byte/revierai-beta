@@ -1,19 +1,40 @@
-# Testplan Beta 0.1
+# Testplan Beta 0.2 – KI
 
-1. Beobachtung mit Foto und GPS anlegen.
-2. App schließen und neu öffnen: Eintrag muss vorhanden sein.
-3. Kartenpunkt setzen und Geländeansicht aktivieren.
-4. Tierprofil anlegen und neue Beobachtung zuordnen.
-5. Wetter für GPS-Standort laden.
-6. Nachsuchefall mit Schützenstand und Anschuss speichern.
-7. Nachsucheprotokoll über die iPhone-Teilen-Funktion versenden.
-8. JSON-Backup erstellen und sichern.
+## Vorbereitung
 
-## Rückmeldung notieren
+- KI-Server und Beta-Zugangscode in Einstellungen eintragen.
+- Mindestens zwei Tierprofile derselben Wildart anlegen.
+- Pro Tierprofil nach Möglichkeit 3–5 bestätigte Lernfotos speichern.
 
-- Welche Schaltfläche reagiert nicht?
-- Welche Eingabe ist unklar?
-- Welche Daten fehlen in der Beobachtung?
-- Wie genau war GPS?
-- Lädt die Karte im Revier?
-- Welche Funktion soll als Nächstes in die Cloud synchronisiert werden?
+## Altersschätzung
+
+Für jedes Testfoto dokumentieren:
+
+- Wildart
+- tatsächlich bekanntes oder später bestätigtes Alter
+- KI-Altersbereich
+- KI-Confidence
+- Bildqualität und Perspektive
+- Bewertung des Jägers: passend / zu jung / zu alt / nicht beurteilbar
+
+Die KI gilt in dieser Beta nur als brauchbar, wenn sie einen sinnvollen Bereich und nachvollziehbare Grenzen nennt. Ein exaktes Alter ist nicht das Ziel.
+
+## Tierwiedererkennung
+
+Testfälle:
+
+1. Dasselbe Tier, ähnliche Perspektive und derselbe Standort.
+2. Dasselbe Tier, anderer Hintergrund.
+3. Dasselbe Tier, Front- gegen Seitenaufnahme.
+4. Verschiedene Tiere ähnlicher Alters- und Geweihklasse.
+5. Sommer- gegen Winteraufnahme.
+
+Für jeden Treffer notieren:
+
+- vorgeschlagenes Profil
+- Prozentwert
+- richtig / falsch
+- Bildqualität
+- auffällige Verwechslungen
+
+Wichtig: Das derzeitige Bildmodell ist ein allgemeines MobileNet und noch kein speziell auf Reh-, Rot- oder Gamswild trainiertes Re-Identification-Modell. Die gesammelten bestätigten Fälle sind die Grundlage für ein späteres eigenes Wildmodell.
