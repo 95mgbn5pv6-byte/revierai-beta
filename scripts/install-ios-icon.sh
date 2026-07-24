@@ -1,20 +1,20 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
 SOURCE="$CM_BUILD_DIR/resources/icon-1024.png"
 DEST="$CM_BUILD_DIR/ios/App/App/Assets.xcassets/AppIcon.appiconset"
-
 mkdir -p "$DEST"
 
 make_icon () {
-  SIZE="$1"
-  SCALE="$2"
-  FILENAME="$3"
-  PIXELS=$(python3 - <<PY
-print(int(float("$SIZE") * int("$SCALE")))
+  local points="$1"
+  local scale="$2"
+  local filename="$3"
+  local pixels
+  pixels=$(python3 - <<PY
+print(round(float("$points") * int("$scale")))
 PY
 )
-  sips -z "$PIXELS" "$PIXELS" "$SOURCE" --out "$DEST/$FILENAME" >/dev/null
+  sips -z "$pixels" "$pixels" "$SOURCE" --out "$DEST/$filename" >/dev/null
 }
 
 make_icon 20 2 "Icon-App-20x20@2x.png"
