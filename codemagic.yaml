@@ -15,13 +15,21 @@ workflows:
         bundle_identifier: at.revierai.app
       vars:
         APP_STORE_APPLE_ID: "6793937670"
-        XCODE_PROJECT: ios/App/App.xcodeproj
-        XCODE_SCHEME: App
+        APP_VERSION: "1.0"
+        BUILD_OFFSET: "1000"
+        XCODE_PROJECT: "ios/App/App.xcodeproj"
+        XCODE_SCHEME: "App"
+
+    cache:
+      cache_paths:
+        - "$HOME/.npm"
 
     scripts:
       - name: Check project
         script: |
           set -euo pipefail
+          pwd
+          ls -la
           test -f package.json
           test -f capacitor.config.ts
           test -f www/index.html
@@ -42,8 +50,8 @@ workflows:
           rm -rf ios
           npx cap add ios --packagemanager SPM
           npx cap sync ios
-          test -d ios/App/App.xcodeproj
-          test -f ios/App/App/Info.plist
+          test -d "$CM_BUILD_DIR/$XCODE_PROJECT"
+          test -f "$CM_BUILD_DIR/ios/App/App/Info.plist"
 
       - name: Install app icon
         script: |
@@ -67,45 +75,118 @@ workflows:
       - name: Configure signing
         script: |
           set -euo pipefail
-          xcode-project use-profiles
+          xcode-project use-profiles \
+            --project "$CM_BUILD_DIR/$XCODE_PROJECT"
 
-      - name: Set next Apple build number
+      - name: Set unique Xcode build number
         script: |
           set -euo pipefail
-          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID")
-          if [ -z "$LATEST_BUILD_NUMBER" ]; then
-            LATEST_BUILD_NUMBER=0
-          fi
-          NEXT_BUILD_NUMBER=$((LATEST_BUILD_NUMBER + 1))
-          echo "Latest Apple build: $LATEST_BUILD_NUMBER"
-          echo "Next build: $NEXT_BUILD_NUMBER"
-          cd "$CM_BUILD_DIR/ios/App"
-          agvtool new-version -all "$NEXT_BUILD_NUMBER"
 
-      - name: Build IPA
+          APP_BUILD_NUMBER=$((BUILD_OFFSET + BUILD_NUMBER))
+          PROJECT_FILE="$CM_BUILD_DIR/ios/App/App.xcodeproj/project.pbxproj"
+
+          echo "Codemagic build number: $BUILD_NUMBER"
+          echo "Apple build number: $APP_BUILD_NUMBER"
+
+          python3 - "$PROJECT_FILE" "$APP_BUILD_NUMBER" "$APP_VERSION" <<'PY'
+          import re
+          import sys
+          from pathlib import Path
+
+          project_file = Path(sys.argv[1])
+          build_number = sys.argv[2]
+          app_version = sys.argv[3]
+
+          text = project_file.read_text(encoding="utf-8")
+
+          text, build_count = re.subn(
+              r"CURRENT_PROJECT_VERSION\s*=\s*[^;]+;",
+              f"CURRENT_PROJECT_VERSION = {build_number};",
+              text,
+          )
+          text, version_count = re.subn(
+              r"MARKETING_VERSION\s*=\s*[^;]+;",
+              f"MARKETING_VERSION = {app_version};",
+              text,
+          )
+
+          if build_count == 0:
+              raise SystemExit("CURRENT_PROJECT_VERSION was not found in project.pbxproj")
+
+          if version_count == 0:
+              raise SystemExit("MARKETING_VERSION was not found in project.pbxproj")
+
+          project_file.write_text(text, encoding="utf-8")
+          print(f"Updated CURRENT_PROJECT_VERSION in {build_count} places")
+          print(f"Updated MARKETING_VERSION in {version_count} places")
+          PY
+
+          echo "APP_BUILD_NUMBER=$APP_BUILD_NUMBER" >> "$CM_ENV"
+
+          xcodebuild \
+            -project "$CM_BUILD_DIR/$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -showBuildSettings |
+            grep -E "CURRENT_PROJECT_VERSION|MARKETING_VERSION" |
+            head -n 10
+
+      - name: Build IPA with forced build number
         script: |
           set -euo pipefail
           cd "$CM_BUILD_DIR"
+
           xcode-project build-ipa \
             --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
-            --scheme "$XCODE_SCHEME"
+            --scheme "$XCODE_SCHEME" \
+            --archive-xcargs "CURRENT_PROJECT_VERSION=$APP_BUILD_NUMBER MARKETING_VERSION=$APP_VERSION"
 
-      - name: Check IPA
+      - name: Verify IPA build number
         script: |
           set -euo pipefail
-          IPA_PATH=$(find "$CM_BUILD_DIR" -type f -name "*.ipa" | head -n 1)
-          if [ -z "$IPA_PATH" ]; then
-            echo "No IPA found"
+
+          SOURCE_IPA=$(find "$CM_BUILD_DIR" -type f -name "*.ipa" ! -path "$CM_BUILD_DIR/publish/*" | head -n 1)
+
+          if [ -z "$SOURCE_IPA" ]; then
+            echo "No IPA was created."
             exit 1
           fi
-          mkdir -p "$CM_BUILD_DIR/build/ios/ipa"
-          if [ "$IPA_PATH" != "$CM_BUILD_DIR/build/ios/ipa/RevierAI.ipa" ]; then
-            cp "$IPA_PATH" "$CM_BUILD_DIR/build/ios/ipa/RevierAI.ipa"
+
+          rm -rf "$CM_BUILD_DIR/publish"
+          mkdir -p "$CM_BUILD_DIR/publish"
+          cp "$SOURCE_IPA" "$CM_BUILD_DIR/publish/RevierAI.ipa"
+
+          rm -rf /tmp/revierai-ipa-check
+          mkdir -p /tmp/revierai-ipa-check
+          unzip -q "$CM_BUILD_DIR/publish/RevierAI.ipa" -d /tmp/revierai-ipa-check
+
+          APP_PLIST=$(find /tmp/revierai-ipa-check/Payload -maxdepth 2 -name Info.plist | head -n 1)
+
+          if [ -z "$APP_PLIST" ]; then
+            echo "Info.plist was not found inside the IPA."
+            exit 1
           fi
-          ls -lh "$CM_BUILD_DIR/build/ios/ipa"
+
+          ACTUAL_BUILD_NUMBER=$(
+            /usr/libexec/PlistBuddy -c "Print :CFBundleVersion" "$APP_PLIST"
+          )
+          ACTUAL_APP_VERSION=$(
+            /usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "$APP_PLIST"
+          )
+
+          echo "IPA version: $ACTUAL_APP_VERSION"
+          echo "IPA build number: $ACTUAL_BUILD_NUMBER"
+          echo "Expected build number: $APP_BUILD_NUMBER"
+
+          if [ "$ACTUAL_BUILD_NUMBER" != "$APP_BUILD_NUMBER" ]; then
+            echo "The IPA contains the wrong build number. Publishing is stopped."
+            exit 1
+          fi
+
+          ls -lh "$CM_BUILD_DIR/publish/RevierAI.ipa"
 
     artifacts:
-      - build/ios/ipa/*.ipa
+      - publish/RevierAI.ipa
       - /tmp/xcodebuild_logs/*.log
       - "$HOME/Library/Developer/Xcode/DerivedData/**/Build/**/*.dSYM"
 
