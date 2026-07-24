@@ -235,11 +235,16 @@
       <p class="sub">Foto, GPS und Angaben werden offline auf diesem iPhone gespeichert.</p>
 
       <form id="observationForm" class="form">
-        <label class="photo-picker" for="observationPhoto">
-          <div id="observationPhotoEmpty" class="photo-picker-content"><div class="big">▣</div><b>Foto aufnehmen oder auswählen</b><p>Tippen öffnet Kamera oder Fotomediathek.</p></div>
+        <label class="photo-picker" for="observationPhotoLibrary">
+          <div id="observationPhotoEmpty" class="photo-picker-content"><div class="big">▣</div><b>Wildfoto hinzufügen</b><p>Aus der Mediathek auswählen oder direkt aufnehmen.</p></div>
           <img id="observationPhotoPreview" hidden alt="Fotovorschau">
         </label>
-        <input id="observationPhoto" type="file" accept="image/*" capture="environment" hidden>
+        <div class="photo-source-actions">
+          <label class="secondary photo-source-button" for="observationPhotoCamera">📷 Kamera</label>
+          <label class="secondary photo-source-button" for="observationPhotoLibrary">▣ Mediathek</label>
+        </div>
+        <input id="observationPhotoCamera" type="file" accept="image/*" capture="environment" hidden>
+        <input id="observationPhotoLibrary" type="file" accept="image/*" hidden>
 
         <div class="form-row">
           <button id="observationGpsButton" class="secondary" type="button">⌖ GPS erfassen</button>
@@ -381,8 +386,13 @@
         <div class="field"><label>Pirschzeichen</label><div class="check-grid">
           ${['Schweiß','Schnitthaar','Knochen','Gewebe','Keine Zeichen','Sonstiges'].map(item=>`<label class="check-option"><input type="checkbox" name="sign" value="${item}"><span>${item}</span></label>`).join('')}
         </div></div>
-        <label class="photo-picker" for="trackingPhoto"><div id="trackingPhotoEmpty" class="photo-picker-content"><div class="big">▣</div><b>Foto der Pirschzeichen</b><p>Optional lokal speichern.</p></div><img id="trackingPhotoPreview" hidden alt="Vorschau"></label>
-        <input id="trackingPhoto" type="file" accept="image/*" capture="environment" hidden>
+        <label class="photo-picker" for="trackingPhotoLibrary"><div id="trackingPhotoEmpty" class="photo-picker-content"><div class="big">▣</div><b>Foto der Pirschzeichen</b><p>Aus der Mediathek auswählen oder direkt aufnehmen.</p></div><img id="trackingPhotoPreview" hidden alt="Vorschau"></label>
+        <div class="photo-source-actions">
+          <label class="secondary photo-source-button" for="trackingPhotoCamera">📷 Kamera</label>
+          <label class="secondary photo-source-button" for="trackingPhotoLibrary">▣ Mediathek</label>
+        </div>
+        <input id="trackingPhotoCamera" type="file" accept="image/*" capture="environment" hidden>
+        <input id="trackingPhotoLibrary" type="file" accept="image/*" hidden>
         <div class="form-row"><button class="secondary" type="button" data-action="track-shooter-gps">⌖ Schützenstand</button><button class="secondary" type="button" data-action="track-impact-gps">⌖ Anschuss</button></div>
         <div id="trackingLocationStatus" class="notice">Noch keine Positionen gespeichert.</div>
         <div class="field"><label for="trackNotes">Notizen</label><textarea id="trackNotes" placeholder="Schussreaktion, Lage, Wartezeit, weitere Beobachtungen …"></textarea></div>
@@ -408,11 +418,16 @@
       </div>
 
       <form id="analysisForm" class="form section">
-        <label class="photo-picker" for="analysisPhoto">
+        <label class="photo-picker" for="analysisPhotoLibrary">
           <div id="analysisPhotoEmpty" class="photo-picker-content"><div class="big">◎</div><b>Wildfoto auswählen</b><p>Eine möglichst scharfe Front- oder Seitenaufnahme verwenden.</p></div>
           <img id="analysisPhotoPreview" hidden alt="Vorschau">
         </label>
-        <input id="analysisPhoto" type="file" accept="image/*" capture="environment" hidden>
+        <div class="photo-source-actions">
+          <label class="secondary photo-source-button" for="analysisPhotoCamera">📷 Kamera</label>
+          <label class="secondary photo-source-button" for="analysisPhotoLibrary">▣ Mediathek</label>
+        </div>
+        <input id="analysisPhotoCamera" type="file" accept="image/*" capture="environment" hidden>
+        <input id="analysisPhotoLibrary" type="file" accept="image/*" hidden>
 
         <div id="aiModelStatus" class="notice">Tierwiedererkennung wartet auf ein Foto.</div>
 
@@ -508,11 +523,32 @@
     settings: setupSettingsForm
   };
 
+  function bindPhotoSources({ cameraId, libraryId, previewId, emptyId, onSelect }) {
+    const handleSelection = async input => {
+      const file = input?.files?.[0] || null;
+      if (!file) return;
+      await onSelect(file);
+      previewFile(file, previewId, emptyId);
+
+      // Allows selecting the same picture again later.
+      const otherId = input.id === cameraId ? libraryId : cameraId;
+      const otherInput = document.getElementById(otherId);
+      if (otherInput) otherInput.value = '';
+    };
+
+    const cameraInput = document.getElementById(cameraId);
+    const libraryInput = document.getElementById(libraryId);
+    cameraInput?.addEventListener('change', () => handleSelection(cameraInput));
+    libraryInput?.addEventListener('change', () => handleSelection(libraryInput));
+  }
+
   function setupObservationForm() {
-    const fileInput = document.getElementById('observationPhoto');
-    fileInput.addEventListener('change', () => {
-      selectedObservationPhoto = fileInput.files?.[0] || null;
-      previewFile(selectedObservationPhoto, 'observationPhotoPreview', 'observationPhotoEmpty');
+    bindPhotoSources({
+      cameraId: 'observationPhotoCamera',
+      libraryId: 'observationPhotoLibrary',
+      previewId: 'observationPhotoPreview',
+      emptyId: 'observationPhotoEmpty',
+      onSelect: file => { selectedObservationPhoto = file; }
     });
     document.getElementById('observationGpsButton').addEventListener('click', () => captureGps('observation'));
     document.getElementById('obsVisibility').value = state.settings.defaultVisibility;
@@ -552,10 +588,12 @@
   }
 
   function setupTrackingForm() {
-    const fileInput = document.getElementById('trackingPhoto');
-    fileInput.addEventListener('change', () => {
-      selectedTrackingPhoto = fileInput.files?.[0] || null;
-      previewFile(selectedTrackingPhoto, 'trackingPhotoPreview', 'trackingPhotoEmpty');
+    bindPhotoSources({
+      cameraId: 'trackingPhotoCamera',
+      libraryId: 'trackingPhotoLibrary',
+      previewId: 'trackingPhotoPreview',
+      emptyId: 'trackingPhotoEmpty',
+      onSelect: file => { selectedTrackingPhoto = file; }
     });
     const time = document.getElementById('trackShotTime');
     time.value = new Date(Date.now() - new Date().getTimezoneOffset()*60000).toISOString().slice(0,16);
@@ -590,17 +628,21 @@
   }
 
   function setupAnalysisForm() {
-    const input = document.getElementById('analysisPhoto');
     const species = document.getElementById('analysisSpecies');
 
-    input.addEventListener('change', async () => {
-      selectedAnalysisPhoto = input.files?.[0] || null;
-      currentAnalysisAiResult = null;
-      currentAnalysisEmbedding = null;
-      currentReidMatches = [];
-      previewFile(selectedAnalysisPhoto, 'analysisPhotoPreview', 'analysisPhotoEmpty');
-      resetAgeAiResult();
-      if (selectedAnalysisPhoto) await runLocalReidentification();
+    bindPhotoSources({
+      cameraId: 'analysisPhotoCamera',
+      libraryId: 'analysisPhotoLibrary',
+      previewId: 'analysisPhotoPreview',
+      emptyId: 'analysisPhotoEmpty',
+      onSelect: async file => {
+        selectedAnalysisPhoto = file;
+        currentAnalysisAiResult = null;
+        currentAnalysisEmbedding = null;
+        currentReidMatches = [];
+        resetAgeAiResult();
+        if (selectedAnalysisPhoto) await runLocalReidentification();
+      }
     });
 
     species.addEventListener('change', async () => {
