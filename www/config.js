@@ -1,0 +1,4 @@
+window.REVIERAI_CONFIG = {
+  AI_BACKEND_URL: '',
+  AI_CLIENT_TOKEN: ''
+};
