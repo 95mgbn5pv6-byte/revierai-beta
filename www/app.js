@@ -800,16 +800,60 @@
     }));
   }
 
-  async function compressImageDataUrl(file, maxDimension = 1600, quality = 0.82) {
+  async function compressImageDataUrl(
+    file,
+    maxDimension = 1024,
+    startQuality = 0.68,
+    maxDataUrlLength = 950000
+  ) {
     const { image, url } = await fileToImage(file);
+
     try {
-      const scale = Math.min(1, maxDimension / Math.max(image.naturalWidth, image.naturalHeight));
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-      canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-      const context = canvas.getContext('2d', { alpha: false });
-      context.drawImage(image, 0, 0, canvas.width, canvas.height);
-      return canvas.toDataURL('image/jpeg', quality);
+      let scale = Math.min(
+        1,
+        maxDimension / Math.max(image.naturalWidth, image.naturalHeight)
+      );
+      let quality = startQuality;
+      let result = '';
+
+      for (let attempt = 1; attempt <= 8; attempt += 1) {
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+        canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+
+        const context = canvas.getContext('2d', { alpha: false });
+        context.imageSmoothingEnabled = true;
+        context.imageSmoothingQuality = 'high';
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+        result = canvas.toDataURL('image/jpeg', quality);
+
+        console.info('RevierAI KI-Foto', {
+          attempt,
+          width: canvas.width,
+          height: canvas.height,
+          quality,
+          payloadKilobytes: Math.round(result.length / 1024)
+        });
+
+        if (result.length <= maxDataUrlLength) {
+          return result;
+        }
+
+        if (quality > 0.5) {
+          quality = Math.max(0.5, quality - 0.08);
+        } else {
+          scale *= 0.82;
+        }
+      }
+
+      if (result.length > 1500000) {
+        throw new Error(
+          'Das Foto konnte nicht klein genug komprimiert werden. Bitte einen engeren Bildausschnitt verwenden.'
+        );
+      }
+
+      return result;
     } finally {
       URL.revokeObjectURL(url);
     }
@@ -833,12 +877,12 @@
     button.disabled = true;
     button.textContent = 'KI analysiert …';
     host.hidden = false;
-    host.innerHTML = '<div class="ai-loading"><span></span> Foto wird komprimiert und sicher analysiert …</div>';
+    host.innerHTML = '<div class="ai-loading"><span></span> Foto wird stark komprimiert und sicher analysiert …</div>';
 
     try {
       const imageDataUrl = await compressImageDataUrl(selectedAnalysisPhoto);
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 70000);
+      const timeout = setTimeout(() => controller.abort(), 110000);
       const response = await fetch(`${backend}/analyze-age`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-RevierAI-Token': state.settings.aiClientToken || '' },
