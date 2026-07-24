@@ -60,3 +60,8 @@ docs/
 3. Codemagic-Build starten.
 4. KI-Worker nach `docs/KI_SERVER_EINRICHTEN_WINDOWS.md` bereitstellen.
 5. Worker-URL und Beta-Zugangscode in der App eintragen.
+
+
+## KI-Server
+
+Vorkonfigurierte Server-URL: `https://revierai-ai.revierai-aimarkus.workers.dev`

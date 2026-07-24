@@ -44,6 +44,19 @@ workflows:
           fi
           npx cap --version
 
+      - name: Embed map and AI libraries
+        script: |
+          set -euo pipefail
+          mkdir -p www/vendor/leaflet/images www/vendor/ai
+          cp node_modules/leaflet/dist/leaflet.js www/vendor/leaflet/leaflet.js
+          cp node_modules/leaflet/dist/leaflet.css www/vendor/leaflet/leaflet.css
+          cp node_modules/leaflet/dist/images/* www/vendor/leaflet/images/
+          cp node_modules/@tensorflow/tfjs/dist/tf.min.js www/vendor/ai/tf.min.js
+          cp node_modules/@tensorflow-models/mobilenet/dist/mobilenet.min.js www/vendor/ai/mobilenet.min.js
+          test -f www/vendor/leaflet/leaflet.js
+          test -f www/vendor/ai/tf.min.js
+          test -f www/vendor/ai/mobilenet.min.js
+
       - name: Create iOS project
         script: |
           set -euo pipefail
@@ -193,6 +206,5 @@ workflows:
     publishing:
       app_store_connect:
         auth: integration
-        submit_to_testflight: true
-        expire_build_submitted_for_review: true
+        submit_to_testflight: false
         submit_to_app_store: false
