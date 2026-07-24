@@ -1,6 +1,6 @@
 workflows:
   ios-testflight:
-    name: "RevierAI Beta 0.2 AI – TestFlight"
+    name: RevierAI iOS TestFlight
     instance_type: mac_mini_m2
     max_build_duration: 60
 
@@ -18,131 +18,91 @@ workflows:
         XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App
 
-    cache:
-      cache_paths:
-        - "$HOME/.npm"
-        - "$HOME/Library/Caches/org.swift.swiftpm"
-
     scripts:
-      - name: Projektstruktur prüfen
+      - name: Check project
         script: |
           set -euo pipefail
-          pwd
-          ls -la
           test -f package.json
           test -f capacitor.config.ts
           test -f www/index.html
-          test -f www/styles.css
-          test -f www/app.js
-          test -f resources/icon-1024.png
 
-      - name: Node-Abhängigkeiten installieren
+      - name: Install dependencies
         script: |
           set -euo pipefail
-          node --version
-          npm --version
-
-          npm install
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
           npx cap --version
 
-      - name: Kartenbibliothek in die App einbetten
-        script: |
-          set -euo pipefail
-          mkdir -p www/vendor/leaflet/images
-          cp node_modules/leaflet/dist/leaflet.js www/vendor/leaflet/leaflet.js
-          cp node_modules/leaflet/dist/leaflet.css www/vendor/leaflet/leaflet.css
-          cp node_modules/leaflet/dist/images/* www/vendor/leaflet/images/
-          test -f www/vendor/leaflet/leaflet.js
-          test -f www/vendor/leaflet/leaflet.css
-
-      - name: Lokale KI-Bibliotheken in die App einbetten
-        script: |
-          set -euo pipefail
-          mkdir -p www/vendor/ai
-          cp node_modules/@tensorflow/tfjs/dist/tf.min.js www/vendor/ai/tf.min.js
-          cp node_modules/@tensorflow-models/mobilenet/dist/mobilenet.min.js www/vendor/ai/mobilenet.min.js
-          test -f www/vendor/ai/tf.min.js
-          test -f www/vendor/ai/mobilenet.min.js
-
-      - name: iOS-Projekt mit Swift Package Manager erzeugen
+      - name: Create iOS project
         script: |
           set -euo pipefail
           rm -rf ios
           npx cap add ios --packagemanager SPM
           npx cap sync ios
-          test -d "$CM_BUILD_DIR/$XCODE_PROJECT"
-          test -f "$CM_BUILD_DIR/ios/App/App/Info.plist"
+          test -d ios/App/App.xcodeproj
+          test -f ios/App/App/Info.plist
 
-      - name: App-Icon einsetzen
+      - name: Install app icon
         script: |
           set -euo pipefail
-          chmod +x scripts/install-ios-icon.sh
-          scripts/install-ios-icon.sh
+          if [ -f scripts/install-ios-icon.sh ] && [ -f resources/icon-1024.png ]; then
+            chmod +x scripts/install-ios-icon.sh
+            scripts/install-ios-icon.sh
+          fi
 
-      - name: iPhone-Berechtigungen eintragen
+      - name: Add iOS permissions
         script: |
           set -euo pipefail
           PLIST="$CM_BUILD_DIR/ios/App/App/Info.plist"
-
-          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string RevierAI benötigt die Kamera zum Erfassen von Wildbeobachtungen, Pirschzeichen und Trophäen." "$PLIST" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string RevierAI benötigt Zugriff auf die von dir ausgewählten Wild- und Wildkamerafotos." "$PLIST" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string RevierAI darf von dir erstellte Bilder in der Fotomediathek speichern." "$PLIST" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string RevierAI verwendet deinen Standort nur zum Speichern von Beobachtungs-, Revier- und Nachsuchepunkten." "$PLIST" 2>/dev/null || true
-          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string RevierAI benötigt das Mikrofon nur für freiwillige Spracheingaben." "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :NSCameraUsageDescription string RevierAI benoetigt die Kamera fuer Wildbeobachtungen." "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryUsageDescription string RevierAI benoetigt Zugriff auf ausgewaehlte Fotos." "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :NSPhotoLibraryAddUsageDescription string RevierAI darf Bilder in der Fotomediathek speichern." "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :NSLocationWhenInUseUsageDescription string RevierAI verwendet den Standort fuer Beobachtungspunkte." "$PLIST" 2>/dev/null || true
+          /usr/libexec/PlistBuddy -c "Add :NSMicrophoneUsageDescription string RevierAI verwendet das Mikrofon fuer Spracheingaben." "$PLIST" 2>/dev/null || true
           /usr/libexec/PlistBuddy -c "Add :ITSAppUsesNonExemptEncryption bool false" "$PLIST" 2>/dev/null || true
 
-      - name: Signierung einrichten
+      - name: Configure signing
         script: |
           set -euo pipefail
-          xcode-project use-profiles --project "$CM_BUILD_DIR/$XCODE_PROJECT"
+          xcode-project use-profiles
 
-    - name: Buildnummer automatisch erhöhen
+      - name: Set next Apple build number
         script: |
           set -euo pipefail
-
-        LATEST_BUILD_NUMBER=$(
-          app-store-connect get-latest-testflight-build-number \
-          "$APP_STORE_APPLE_ID" \
-          --platform IOS \
-          --pre-release-version 1.0
-      )
-
+          LATEST_BUILD_NUMBER=$(app-store-connect get-latest-app-store-build-number "$APP_STORE_APPLE_ID")
           if [ -z "$LATEST_BUILD_NUMBER" ]; then
             LATEST_BUILD_NUMBER=0
           fi
-
           NEXT_BUILD_NUMBER=$((LATEST_BUILD_NUMBER + 1))
-
-          echo "Letzter TestFlight-Build: $LATEST_BUILD_NUMBER"
-          echo "Neuer Build: $NEXT_BUILD_NUMBER"
-
+          echo "Latest Apple build: $LATEST_BUILD_NUMBER"
+          echo "Next build: $NEXT_BUILD_NUMBER"
           cd "$CM_BUILD_DIR/ios/App"
-          agvtool new-version -all "$NEXT_BUILD_NUMBER" 
-            - name: IPA für TestFlight bauen
+          agvtool new-version -all "$NEXT_BUILD_NUMBER"
+
+      - name: Build IPA
         script: |
           set -euo pipefail
           cd "$CM_BUILD_DIR"
-
           xcode-project build-ipa \
             --project "$CM_BUILD_DIR/$XCODE_PROJECT" \
-            --scheme "$XCODE_SCHEME" \
-            --archive-flags="-destination 'generic/platform=iOS'"
+            --scheme "$XCODE_SCHEME"
 
-      - name: IPA finden und prüfen
+      - name: Check IPA
         script: |
           set -euo pipefail
-          echo "Gefundene IPA-Dateien:"
-          find "$CM_BUILD_DIR" -type f -name "*.ipa" -print
-
           IPA_PATH=$(find "$CM_BUILD_DIR" -type f -name "*.ipa" | head -n 1)
           if [ -z "$IPA_PATH" ]; then
-            echo "FEHLER: Es wurde keine IPA erzeugt."
+            echo "No IPA found"
             exit 1
           fi
-
           mkdir -p "$CM_BUILD_DIR/build/ios/ipa"
-          cp "$IPA_PATH" "$CM_BUILD_DIR/build/ios/ipa/RevierAI.ipa"
-          ls -lh "$CM_BUILD_DIR/build/ios/ipa/RevierAI.ipa"
+          if [ "$IPA_PATH" != "$CM_BUILD_DIR/build/ios/ipa/RevierAI.ipa" ]; then
+            cp "$IPA_PATH" "$CM_BUILD_DIR/build/ios/ipa/RevierAI.ipa"
+          fi
+          ls -lh "$CM_BUILD_DIR/build/ios/ipa"
 
     artifacts:
       - build/ios/ipa/*.ipa
@@ -153,4 +113,5 @@ workflows:
       app_store_connect:
         auth: integration
         submit_to_testflight: true
+        expire_build_submitted_for_review: true
         submit_to_app_store: false
