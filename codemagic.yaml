@@ -14,6 +14,7 @@ workflows:
         distribution_type: app_store
         bundle_identifier: at.revierai.app
       vars:
+        APP_STORE_APPLE_ID: 6793937670
         XCODE_PROJECT: ios/App/App.xcodeproj
         XCODE_SCHEME: App
 
@@ -95,12 +96,28 @@ workflows:
           set -euo pipefail
           xcode-project use-profiles --project "$CM_BUILD_DIR/$XCODE_PROJECT"
 
-      - name: Buildnummer setzen
-        script: |
-          set -euo pipefail
-          cd "$CM_BUILD_DIR/ios/App"
-          agvtool new-version -all "$BUILD_NUMBER"
+    - name: Buildnummer automatisch erhöhen
+  script: |
+    set -euo pipefail
 
+    LATEST_BUILD_NUMBER=$(
+      app-store-connect get-latest-testflight-build-number \
+        "$APP_STORE_APPLE_ID" \
+        --platform IOS \
+        --pre-release-version 1.0
+    )
+
+    if [ -z "$LATEST_BUILD_NUMBER" ]; then
+      LATEST_BUILD_NUMBER=0
+    fi
+
+    NEXT_BUILD_NUMBER=$((LATEST_BUILD_NUMBER + 1))
+
+    echo "Letzter TestFlight-Build: $LATEST_BUILD_NUMBER"
+    echo "Neuer Build: $NEXT_BUILD_NUMBER"
+
+    cd "$CM_BUILD_DIR/ios/App"
+    agvtool new-version -all "$NEXT_BUILD_NUMBER" 
       - name: IPA für TestFlight bauen
         script: |
           set -euo pipefail
