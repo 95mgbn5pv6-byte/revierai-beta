@@ -1,13 +1,12 @@
 {
-  "name": "revierai-ai-worker",
-  "version": "0.2.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "wrangler dev",
-    "deploy": "wrangler deploy"
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "revierai-ai",
+  "main": "src/index.js",
+  "compatibility_date": "2026-07-24",
+  "vars": {
+    "OPENAI_MODEL": "gpt-5-mini"
   },
-  "devDependencies": {
-    "wrangler": "^4.0.0"
+  "secrets": {
+    "required": ["OPENAI_API_KEY", "REVIERAI_CLIENT_TOKEN"]
   }
 }
